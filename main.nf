@@ -228,5 +228,5 @@ workflow {
     PLINK_INDEP_PAIRWISE(PLINK_MAKE_PFILE.out.pfile, ld_exclude_bed)
     PLINK_PCA(PLINK_INDEP_PAIRWISE.out.pfile)
 
-    PREPARE_GENE_REGIONS(params.gene_gtf, params.target_fai)
+    PREPARE_GENE_REGIONS(gene_gtf, target_fai)
 }
