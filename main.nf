@@ -208,7 +208,7 @@ workflow {
     donors = file(params.donors, checkIfExists: true)
     source_fasta = file(params.source_fasta, checkIfExists: true)
     target_fasta = file(params.target_fasta, checkIfExists: true)
-    target_fai = file("${params.targe_fasta}.fai", checkIfExists: true)
+    target_fai = file("${params.target_fasta}.fai", checkIfExists: true)
     chain_file = file(params.chain_file, checkIfExists: true)
     ld_exclude_bed = file(params.ld_exclude_bed, checkIfExists: true)
     gene_gtf = file(params.gene_gtf, checkIfExists: true)
