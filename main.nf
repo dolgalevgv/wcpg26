@@ -167,6 +167,7 @@ process PLINK_PCA {
     tag "${pgen.baseName}"
     container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/7f/7fbbbd635adc17f214e69145009a0d1d0411c350b5e70eb14b5aa68d79a3fa1b/data'
 
+    publishDir "${params.outdir}/plink2", copy: true, pattern: "*.eigenvec"
     input:
     tuple path(pgen), path(psam), path(pvar), path(pruned)
 
