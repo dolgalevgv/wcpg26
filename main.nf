@@ -4,7 +4,7 @@ nextflow.enable.dsl = 2
 
 process PREPARE_DONORS {
     tag "${donors.baseName}"
-    container 'community.wave.seqera.io/library/pandas:3.0.6--630f7ea55db1a6c6'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/fd/fd4d58047a5a9c36d1ab9f6b9ac3242d1ee123e773f96548a3ddf5a26fb15453/data'
 
     input:
     path(donors)
@@ -20,7 +20,7 @@ process PREPARE_DONORS {
 
 process BCFTOOLS_EXTRACT_DONORS {
     tag "${vcf.getBaseName(2)}"
-    container 'community.wave.seqera.io/library/bcftools-liftover-plugin_bcftools:1.22--6fc2af52589cbdaa'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/a0/a08933da914fc6b3650dbe842d7c2e4d95155d9a57a8c49c3756ad7248b7fc2c/data'
 
     input:
     path(vcf)
@@ -44,7 +44,7 @@ process BCFTOOLS_EXTRACT_DONORS {
 
 process BCFTOOLS_LIFTOVER {
     tag "${vcf.getBaseName(2)}"
-    container 'community.wave.seqera.io/library/bcftools-liftover-plugin_bcftools:1.22--6fc2af52589cbdaa'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/a0/a08933da914fc6b3650dbe842d7c2e4d95155d9a57a8c49c3756ad7248b7fc2c/data'
 
     input:
     path(vcf)
@@ -84,7 +84,7 @@ process BCFTOOLS_LIFTOVER {
 
 process BCFTOOLS_VARIANT_QC {
     tag "${vcf.getBaseName(2)}"
-    container 'community.wave.seqera.io/library/bcftools-liftover-plugin_bcftools:1.22--6fc2af52589cbdaa'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/a0/a08933da914fc6b3650dbe842d7c2e4d95155d9a57a8c49c3756ad7248b7fc2c/data'
 
     input:
     path(vcf)
@@ -107,7 +107,7 @@ process BCFTOOLS_VARIANT_QC {
 
 process BCFTOOLS_INDEX {
     tag "${vcf.getBaseName(2)}"
-    container 'community.wave.seqera.io/library/bcftools-liftover-plugin_bcftools:1.22--6fc2af52589cbdaa'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/a0/a08933da914fc6b3650dbe842d7c2e4d95155d9a57a8c49c3756ad7248b7fc2c/data'
 
     input:
     path(vcf)
@@ -123,7 +123,7 @@ process BCFTOOLS_INDEX {
 
 process PLINK_MAKE_PFILE {
     tag "${vcf.getBaseName(2)}"
-    container 'community.wave.seqera.io/library/plink2:2.00a5.12--31b677d2ee702c1c'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/7f/7fbbbd635adc17f214e69145009a0d1d0411c350b5e70eb14b5aa68d79a3fa1b/data'
 
     input:
     path(vcf)
@@ -143,7 +143,7 @@ process PLINK_MAKE_PFILE {
 
 process PLINK_INDEP_PAIRWISE {
     tag "${pgen.baseName}"
-    container 'community.wave.seqera.io/library/plink2:2.00a5.12--31b677d2ee702c1c'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/7f/7fbbbd635adc17f214e69145009a0d1d0411c350b5e70eb14b5aa68d79a3fa1b/data'
 
     input:
     tuple path(pgen), path(psam), path(pvar)
@@ -165,7 +165,7 @@ process PLINK_INDEP_PAIRWISE {
 
 process PLINK_PCA {
     tag "${pgen.baseName}"
-    container 'community.wave.seqera.io/library/plink2:2.00a5.12--31b677d2ee702c1c'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/7f/7fbbbd635adc17f214e69145009a0d1d0411c350b5e70eb14b5aa68d79a3fa1b/data'
 
     input:
     tuple path(pgen), path(psam), path(pvar), path(pruned)
