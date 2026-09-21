@@ -184,14 +184,34 @@ process PLINK_PCA {
     """
 }
 
+process PREPARE_GENE_REGIONS {
+    tag "${gtf.baseName}"
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/fd/fd4d58047a5a9c36d1ab9f6b9ac3242d1ee123e773f96548a3ddf5a26fb15453/data'
+    publishDir "${params.outdir}/gene_regions", mode: 'copy'
+    
+    input:
+    path(gtf)
+    path(fai)
+
+    output:
+    path("gene_regions.tsv"), emit: regions
+
+    script:
+    """
+    prepare_gene_regions.py ${gtf} ${fai} gene_regions.tsv ${params.cis_window}
+    """
+}
+
 
 workflow {
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
     donors = file(params.donors, checkIfExists: true)
     source_fasta = file(params.source_fasta, checkIfExists: true)
     target_fasta = file(params.target_fasta, checkIfExists: true)
+    target_fai = file("${params.targe_fasta}.fai", checkIfExists: true)
     chain_file = file(params.chain_file, checkIfExists: true)
     ld_exclude_bed = file(params.ld_exclude_bed, checkIfExists: true)
+    gene_gtf = file(params.gene_gtf, checkIfExists: true)
 
     PREPARE_DONORS(donors)
     BCFTOOLS_EXTRACT_DONORS(vcf_ch, PREPARE_DONORS.out.donors_vcf)
@@ -207,4 +227,6 @@ workflow {
     PLINK_MAKE_PFILE(BCFTOOLS_VARIANT_QC.out.vcf)
     PLINK_INDEP_PAIRWISE(PLINK_MAKE_PFILE.out.pfile, ld_exclude_bed)
     PLINK_PCA(PLINK_INDEP_PAIRWISE.out.pfile)
+
+    PREPARE_GENE_REGIONS(params.gene_gtf, params.target_fai)
 }
