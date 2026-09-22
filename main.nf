@@ -270,4 +270,12 @@ workflow {
         PLINK_PCA.out,
         PREPARE_GENE_REGIONS.out.regions
     )
+
+    qtl_strata_ch = PREPARE_QTL_PHENOTYPES.out.strata
+        .flatten()
+        .map { stratum_dir ->
+            tuple(stratum_dir.name, stratum_dir)
+        }
+
+    qtl_strata_ch.view()
 }
