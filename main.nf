@@ -203,6 +203,38 @@ process PREPARE_GENE_REGIONS {
     """
 }
 
+process PREPARE_QTL_PHENOTYPES {
+    tag "${adata.baseName}"
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/5c/5c688ea7f743de8aa32394006d13bd87e1d5d03df3e1e3b0443907de1ac786c9/data'
+
+    publishDir "${params.outdir}/qtl_phenotypes/", mode: 'copy', pattern: "*.csv"
+
+    input:
+    path(adata)
+    path(donors)
+    path(pca)
+    path(regions)
+
+    output:
+    path("mainfest.csv"), emit: manifest
+    path("*_*"), type: 'dir', optional: true, emit: strata
+
+    script:
+    """
+    prepare_qtl_phenotypes.py \\
+        "${adata}" \\
+        "${donors}" \\
+        "${pca}" \\
+        "${regions}" \\
+        --cell_type_col ${params.cell_type_col} \\
+        --treat_col ${params.treat_col} \\
+        --qcovar ${params.qcovar} \\
+        --min-n-cells ${params.min_n_cells} \\
+        --min-n-donors ${params.min_n_donors} \\
+        --min-cells-frac ${params.min_cells_frac} \\
+        --min-donor-frac ${params.min_donor_frac}
+    """
+}
 
 workflow {
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
@@ -213,6 +245,7 @@ workflow {
     chain_file = file(params.chain_file, checkIfExists: true)
     ld_exclude_bed = file(params.ld_exclude_bed, checkIfExists: true)
     gene_gtf = file(params.gene_gtf, checkIfExists: true)
+    adata = file(params.adata, checkIfExists: true)
 
     PREPARE_DONORS(donors)
     BCFTOOLS_EXTRACT_DONORS(vcf_ch, PREPARE_DONORS.out.donors_vcf)
@@ -230,4 +263,11 @@ workflow {
     PLINK_PCA(PLINK_INDEP_PAIRWISE.out.pfile)
 
     PREPARE_GENE_REGIONS(gene_gtf, target_fai)
+
+    PREPARE_QTL_PHENOTYPES(
+        adata,
+        donors,
+        PLINK_PCA.out,
+        PREPARE_GENE_REGIONS.out.regions
+    )
 }
