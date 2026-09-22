@@ -301,8 +301,6 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
     tag "${meta.phenotype_name}:${meta.gene_id}"
     container 'docker://wzhou88/saigeqtl:latest'
 
-    publishDir { "${params.outdir}/saige/step1/${meta.phenotype_name}" }, mode: 'copy'
-
     input:
     tuple val(meta),
           path(phenotype),
@@ -361,6 +359,56 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
         --nThreads=${task.cpus} \\
         --outputPrefix="\$saige_workdir/${meta.gene_id}" \\
         2>&1 | tee "${meta.gene_id}.step1.log"
+    """
+}
+
+process SAIGE_STEP2_TEST_CIS {
+    tag "${meta.phenotype_name}:${meta.gene_id}"
+    container 'docker://wzhou88/saigeqtl:latest'
+
+    input:
+    tuple val(meta),
+          path(model),
+          path(variance_ratio)
+
+    tuple path(vcf),
+          path(vcf_index)
+
+    output:
+    tuple val(meta),
+          path("${meta.gene_id}.cis.tsv"),
+          emit: associations
+
+    tuple val(meta),
+          path("${meta.gene_id}.step2.log"),
+          emit: logs
+
+    script:
+    """
+    saige_workdir=\$(pwd -P)
+
+    printf '%s\\t%s\\t%s\\n' \\
+        "${meta.chrom}" "${meta.cis_start}" "${meta.cis_end}" \\
+        > cis_region.tsv
+
+    step2_tests_qtl.R \\
+        --vcfFile="\$saige_workdir/${vcf}" \\
+        --vcfFileIndex="\$saige_workdir/${vcf_index}" \\
+        --vcfField=GT \\
+        --GMMATmodelFile="\$saige_workdir/${model}" \\
+        --varianceRatioFile="\$saige_workdir/${variance_ratio}" \\
+        --rangestoIncludeFile="\$saige_workdir/cis_region.tsv" \\
+        --chrom="${meta.chrom}" \\
+        --minMAC=${params.min_mac} \\
+        --minMAF=0 \\
+        --maxMissing=${params.max_missing} \\
+        --is_imputed_data=FALSE \\
+        --LOCO=FALSE \\
+        --SPAcutoff=2 \\
+        --markers_per_chunk=${params.saige_markers_per_chunk} \\
+        --is_overwrite_output=TRUE \\
+        --SAIGEOutputFile="\$saige_workdir/${meta.gene_id}.cis.tsv" \\
+        2>&1 | tee "${meta.gene_id}.step2.log"
     """
 }
 
@@ -433,4 +481,9 @@ workflow {
         }
 
     SAIGE_STEP1_FIT_NULL_GLMM(saige_gene_inputs_ch)
+
+    SAIGE_STEP2_TEST_CIS(
+        SAIGE_STEP1_FIT_NULL_GLMM.out.models,
+        BCFTOOLS_INDEX.out.vcf.first()
+    )
 }
