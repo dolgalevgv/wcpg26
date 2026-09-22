@@ -216,7 +216,7 @@ process PREPARE_QTL_PHENOTYPES {
     path(regions)
 
     output:
-    path("mainfest.csv"), emit: manifest
+    path("manifest.csv"), emit: manifest
     path("*_*"), type: 'dir', optional: true, emit: strata
 
     script:
