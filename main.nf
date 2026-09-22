@@ -297,6 +297,69 @@ process EXPORT_SAIGE_PHENOTYPES {
     """
 }
 
+process SAIGE_STEP1_FIT_NULL_GLMM {
+    tag "${meta.phenotype_name}:${meta.gene_id}"
+    container 'docker://wzhou88/saigeqtl:latest'
+
+    publishDir { "${params.outdir}/saige/step1/${meta.phenotype_name}" }, mode: 'copy'
+
+    input:
+    tuple val(meta),
+          path(phenotype),
+          path(covariates),
+          path(bed),
+          path(fam),
+          path(bim)
+
+    output:
+    tuple val(meta),
+          path("${meta.gene_id}.rda"),
+          path("${meta.gene_id}.varianceRatio.txt"),
+          emit: models
+
+    tuple val(meta),
+          path("${meta.gene_id}.step1.log"),
+          emit: logs
+
+    tuple val(meta),
+          path("${meta.gene_id}.status.txt"),
+          optional: true,
+          emit: status
+
+    script:
+    """
+    covariate_columns=\$(cat "${covariates}")
+
+    step1_fitNULLGLMM_qtl.R \\
+        --phenoFile="${phenotype}" \\
+        --phenoCol=expression \\
+        --sampleIDColinphenoFile=donor \\
+        --cellIDColinphenoFile=cell_id \\
+        --covarColList="\$covariate_columns" \\
+        --sampleCovarColList="\$covariate_columns" \\
+        --offsetCol=log_total_counts \\
+        --traitType=count \\
+        --plinkFile="${bed.baseName}" \\
+        --useGRMtoFitNULL=FALSE \\
+        --useSparseGRMtoFitNULL=FALSE \\
+        --LOCO=FALSE \\
+        --isRemoveZerosinPheno=FALSE \\
+        --isCovariateOffset=FALSE \\
+        --isCovariateTransform=TRUE \\
+        --skipModelFitting=FALSE \\
+        --skipVarianceRatioEstimation=FALSE \\
+        --isCateVarianceRatio=FALSE \\
+        --IsOverwriteVarianceRatioFile=TRUE \\
+        --isStoreSigma=FALSE \\
+        --isShrinkModelOutput=TRUE \\
+        --tol=${params.saige_tol} \\
+        --maxiter=${params.saige_maxiter} \\
+        --nThreads=${task.cpus} \\
+        --outputPrefix="${meta.gene_id}" \\
+        2>&1 | tee "${meta.gene_id}.step1.log"
+    """
+}
+
 workflow {
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
     donors = file(params.donors, checkIfExists: true)
@@ -364,4 +427,6 @@ workflow {
                 bim
             )
         }
+
+    SAIGE_STEP1_FIT_NULL_GLMM(saige_gene_inputs_ch.take(5))
 }
