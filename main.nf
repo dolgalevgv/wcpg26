@@ -331,7 +331,7 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
     covariate_columns=\$(cat "${covariates}")
 
     step1_fitNULLGLMM_qtl.R \\
-        --phenoFile="${phenotype}" \\
+        --phenoFile=${phenotype} \\
         --phenoCol=expression \\
         --sampleIDColinphenoFile=donor \\
         --cellIDColinphenoFile=cell_id \\
@@ -339,7 +339,9 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
         --sampleCovarColList="\$covariate_columns" \\
         --offsetCol=log_total_counts \\
         --traitType=count \\
-        --plinkFile="${bed.baseName}" \\
+        --bedFile=${bed} \\
+        --famFile=${fam} \\
+        --bimFile=${bed} \\
         --useGRMtoFitNULL=FALSE \\
         --useSparseGRMtoFitNULL=FALSE \\
         --LOCO=FALSE \\
