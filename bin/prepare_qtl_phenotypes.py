@@ -84,7 +84,7 @@ for t, c in itertools.product(treat_levels, cell_type_levels):
         how="left",
         validate="many_to_one",
     )
-    sub_adata.obs = sub_adata.obs.drop(columns="n_cells")
+    sub_adata.obs = sub_adata.obs.drop(columns=["n_cells", cell_type_col, treat_col])
 
     sub_adata.var = sub_adata.var.set_index("gene_id").loc[:, ["mt"]]
     regions_keep = sub_adata.var.index.isin(regions.index)
