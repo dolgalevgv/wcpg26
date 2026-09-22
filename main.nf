@@ -207,7 +207,7 @@ process PREPARE_QTL_PHENOTYPES {
     tag "${adata.baseName}"
     container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/5c/5c688ea7f743de8aa32394006d13bd87e1d5d03df3e1e3b0443907de1ac786c9/data'
 
-    publishDir "${params.outdir}/qtl_phenotypes/", mode: 'copy', pattern: "*.csv"
+    publishDir "${params.outdir}/qtl_phenotypes/", mode: 'copy', pattern: "{*.csv,**/*.csv}"
 
     input:
     path(adata)
@@ -217,7 +217,7 @@ process PREPARE_QTL_PHENOTYPES {
 
     output:
     path("manifest.csv"), emit: manifest
-    path("*_*"), type: 'dir', optional: true, emit: strata
+    path("*_*"), type: 'dir', optional: true, emit: phenotypes
 
     script:
     """
@@ -233,6 +233,38 @@ process PREPARE_QTL_PHENOTYPES {
         --min-n-donors ${params.min_n_donors} \\
         --min-cells-frac ${params.min_cells_frac} \\
         --min-donor-frac ${params.min_donor_frac}
+    """
+}
+
+process PLINK_PREPARE_SAIGE_BFILE {
+    tag "${phenotype_name}"
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/7f/7fbbbd635adc17f214e69145009a0d1d0411c350b5e70eb14b5aa68d79a3fa1b/data'
+
+    publishDir "${params.outdir}/saige_genotypes/${phenotype_name}", mode: 'copy'
+
+    input:
+    tuple val(phenotype_name), path(phenotype_dir)
+    tuple path(pgen), path(psam), path(pvar), path(pruned)
+
+    output:
+    tuple val(phenotype_name), 
+          path(phenotype_dir), 
+          path("${phenotype_name}_saige_vr.bed"), 
+          path("${phenotype_name}_saige_vr.fam"), 
+          path("${phenotype_name}_saige_vr.bim"), 
+          emit: qtl_inputs
+
+    script:
+    """
+    tail +n 2 ${phenotype_dir}/donors.csv | cut -d, -f1 > donors_keep.txt
+
+    plink2 \\
+        --pfile ${pgen.baseName} \\
+        --keep donors_keep.txt \\
+        --extract ${pruned} \\
+        --mac 20 \\
+        --make-bed \\
+        --out ${phenotype_name}_saige_vr
     """
 }
 
@@ -271,10 +303,10 @@ workflow {
         PREPARE_GENE_REGIONS.out.regions
     )
 
-    qtl_strata_ch = PREPARE_QTL_PHENOTYPES.out.strata
+    qtl_phenotypes_ch = PREPARE_QTL_PHENOTYPES.out.phenotypes
         .flatten()
-        .map { stratum_dir ->
-            tuple(stratum_dir.name, stratum_dir)
+        .map { phenotypes_dir ->
+            tuple(phenotypes_dir.name, phenotypes_dir)
         }
 
     qtl_strata_ch.view()

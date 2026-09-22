@@ -84,6 +84,7 @@ for t, c in itertools.product(treat_levels, cell_type_levels):
         how="left",
         validate="many_to_one",
     )
+    sub_adata.obs = sub_adata.obs.drop(columns="n_cells")
 
     sub_adata.var = sub_adata.var.set_index("gene_id").loc[:, ["mt"]]
     regions_keep = sub_adata.var.index.isin(regions.index)
@@ -136,4 +137,4 @@ for t, c in itertools.product(treat_levels, cell_type_levels):
     sub_adata.var.reset_index(names="gene_id").to_csv(stratum / Path("genes.csv"), index=False)
 
 manifest = pd.DataFrame(manifest, columns=[cell_type_col, treat_col, "n_donors", "n_genes"])
-manifest.to_csv("manifest.csv")
+manifest.to_csv("manifest.csv", index=False)
