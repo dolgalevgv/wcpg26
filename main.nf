@@ -328,10 +328,12 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
 
     script:
     """
+    saige_workdir=\$(pwd -P)
+
     covariate_columns=\$(cat "${covariates}")
 
     step1_fitNULLGLMM_qtl.R \\
-        --phenoFile=${phenotype} \\
+        --phenoFile="\$saige_workdir/${phenotype}" \\
         --phenoCol=expression \\
         --sampleIDColinphenoFile=donor \\
         --cellIDColinphenoFile=cell_id \\
@@ -339,9 +341,9 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
         --sampleCovarColList="\$covariate_columns" \\
         --offsetCol=log_total_counts \\
         --traitType=count \\
-        --bedFile=${bed} \\
-        --famFile=${fam} \\
-        --bimFile=${bed} \\
+        --bedFile="\$saige_workdir/${bed}" \\
+        --famFile="\$saige_workdir/${fam}" \\
+        --bimFile="\$saige_workdir/${bim}" \\
         --useGRMtoFitNULL=FALSE \\
         --useSparseGRMtoFitNULL=FALSE \\
         --LOCO=FALSE \\
@@ -357,7 +359,7 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
         --tol=${params.saige_tol} \\
         --maxiter=${params.saige_maxiter} \\
         --nThreads=${task.cpus} \\
-        --outputPrefix="${meta.gene_id}" \\
+        --outputPrefix="\$saige_workdir/${meta.gene_id}" \\
         2>&1 | tee "${meta.gene_id}.step1.log"
     """
 }
