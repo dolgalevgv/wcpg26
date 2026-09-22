@@ -309,5 +309,5 @@ workflow {
             tuple(phenotypes_dir.name, phenotypes_dir)
         }
 
-    qtl_phenotypes_ch.view()
+    PLINK_PREPARE_SAIGE_BFILE(qtl_phenotypes_ch, PLINK_INDEP_PAIRWISE.out.pfile)
 }
