@@ -309,5 +309,5 @@ workflow {
             tuple(phenotypes_dir.name, phenotypes_dir)
         }
 
-    qtl_strata_ch.view()
+    qtl_phenotypes_ch.view()
 }
