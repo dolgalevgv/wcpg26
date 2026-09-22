@@ -240,7 +240,7 @@ process PLINK_PREPARE_SAIGE_BFILE {
     tag "${phenotype_name}"
     container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/7f/7fbbbd635adc17f214e69145009a0d1d0411c350b5e70eb14b5aa68d79a3fa1b/data'
 
-    publishDir "${params.outdir}/saige_genotypes/${phenotype_name}", mode: 'copy'
+    publishDir { "${params.outdir}/saige_genotypes/${phenotype_name}" }, mode: 'copy', pattern: "*saige_vr*"
 
     input:
     tuple val(phenotype_name), path(phenotype_dir)
@@ -256,7 +256,7 @@ process PLINK_PREPARE_SAIGE_BFILE {
 
     script:
     """
-    tail +n 2 ${phenotype_dir}/donors.csv | cut -d, -f1 > donors_keep.txt
+    tail -n +2 ${phenotype_dir}/donors.csv | cut -d, -f1 > donors_keep.txt
 
     plink2 \\
         --pfile ${pgen.baseName} \\
@@ -309,5 +309,8 @@ workflow {
             tuple(phenotypes_dir.name, phenotypes_dir)
         }
 
-    PLINK_PREPARE_SAIGE_BFILE(qtl_phenotypes_ch, PLINK_INDEP_PAIRWISE.out.pfile)
+    PLINK_PREPARE_SAIGE_BFILE(
+        qtl_phenotypes_ch, 
+        PLINK_INDEP_PAIRWISE.out.pfile.first()
+        )
 }
