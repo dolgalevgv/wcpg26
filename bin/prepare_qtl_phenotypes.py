@@ -1,6 +1,7 @@
+#!/usr/bin/env python
+
 import argparse
 import itertools
-import sys
 from pathlib import Path
 
 import anndata as ad
