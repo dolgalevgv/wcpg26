@@ -30,7 +30,7 @@ regions_path = args.regions_path
 
 cell_type_col = args.cell_type_col
 treat_col = args.treat_col
-qcovar = args.qcovar.split(",")
+qcovar = args.qcovar.split(",") if "," in args.qcovar else [args.qcovar]
 
 min_n_donors = args.min_n_donors
 min_n_cells = args.min_n_cells
