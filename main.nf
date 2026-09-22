@@ -268,6 +268,35 @@ process PLINK_PREPARE_SAIGE_BFILE {
     """
 }
 
+process EXPORT_SAIGE_PHENOTYPES {
+    tag "${phenotype_name}"
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/5c/5c688ea7f743de8aa32394006d13bd87e1d5d03df3e1e3b0443907de1ac786c9/data'
+
+    input:
+    tuple val(phenotype_name),
+          path(phenotype_dir),
+          path(bed),
+          path(fam),
+          path(bim)
+
+    output:
+    tuple val(phenotype_name),
+          path("manifest.csv"),
+          path("gene_inputs"),
+          path("covariates.txt"),
+          path(bed),
+          path(fam),
+          path(bim),
+          emit: qtl_inputs
+
+    script:
+    """
+    export_saige_phenotypes.py \\
+        ${phenotype_dir}/phenotypes.h5ad \\
+        ${phenotype_dir}/donors.csv
+    """
+}
+
 workflow {
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
     donors = file(params.donors, checkIfExists: true)
@@ -313,4 +342,26 @@ workflow {
         qtl_phenotypes_ch, 
         PLINK_INDEP_PAIRWISE.out.pfile.first()
         )
+
+    EXPORT_SAIGE_PHENOTYPES(PLINK_PREPARE_SAIGE_BFILE.out.qtl_inputs)
+
+    saige_gene_inputs_ch = EXPORT_SAIGE_PHENOTYPES.out.qtl_inputs
+        .splitCsv(header: true, elem: 1)
+        .map { phenotype_name, row, gene_dir, covariates, bed, fam, bim  ->
+            def meta = [
+                phenotype_name: phenotype_name,
+                gene_id: row.gene_id,
+                chrom: row.chrom,
+                cis_start: row.cis_start.toInteger(),
+                cis_end: row.cis_end.toInteger()
+            ]
+            tuple(
+                meta,
+                gene_dir.resolve(row.phenotype_file),
+                covariates,
+                bed,
+                fam,
+                bim
+            )
+        }
 }
