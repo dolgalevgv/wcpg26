@@ -55,7 +55,7 @@ pvar = pd.read_csv(
     header=None,
     usecols=[0, 1],
     names=["chrom", "pos"],
-    dtype={"chrom": str, "pos": "int64"},
+    dtype={"chrom": "int8", "pos": "int64"},
 )
 
 regions["n_cis_variants"] = 0
@@ -70,6 +70,16 @@ for chrom, variants in pvar.groupby("chrom", sort=False):
         np.searchsorted(positions, ends, side="right")
         - np.searchsorted(positions, starts, side="left")
     )
+
+regions_rejected = regions.loc[regions["n_cis_variants"] == 0]
+if not regions_rejected.empty:
+    regions_rejected.reset_index(names="gene_id").to_csv(
+        "regions_rejected.csv",
+        index=False,
+    )
+    print(f"{regions_rejected.shape[0]} genes have no cis variants, skipping them")
+
+regions = regions.loc[regions["n_cis_variants"] > 0]
 
 donors = donors.drop(columns="vcf_id").join(pca)
 
@@ -134,15 +144,7 @@ for t, c in itertools.product(treat_levels, cell_type_levels):
     genes["donor_frac"] = donor_frac_genes
     genes["donor_frac_keep"] = donor_keep
 
-    genes["n_cis_variants"] = (
-        regions["n_cis_variants"]
-        .reindex(genes.index)
-        .fillna(0)
-        .astype("int64")
-    )
-    genes["cis_variants_keep"] = genes["n_cis_variants"].gt(0)
-
-    gene_keep = regions_keep & mt_keep & donor_keep & genes["cis_variants_keep"]
+    gene_keep = regions_keep & mt_keep & donor_keep
     genes_excluded = genes.loc[~gene_keep]
 
     sub_adata = sub_adata[:, gene_keep]

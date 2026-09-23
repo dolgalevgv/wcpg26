@@ -219,6 +219,8 @@ process PREPARE_QTL_PHENOTYPES {
     output:
     path("manifest.csv"), emit: manifest
     path("*_*"), type: 'dir', optional: true, emit: phenotypes
+    path("regions_rejected.csv"), optional: true, emit: rejected_regions
+    path("*.genes_excluded.csv"), optional: true, emit: skipped_strata_genes
 
     script:
     """
