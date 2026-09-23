@@ -480,7 +480,7 @@ workflow {
             )
         }
 
-    SAIGE_STEP1_FIT_NULL_GLMM(saige_gene_inputs_ch)
+    SAIGE_STEP1_FIT_NULL_GLMM(saige_gene_inputs_ch.take(5))
 
     SAIGE_STEP2_TEST_CIS(
         SAIGE_STEP1_FIT_NULL_GLMM.out.models,
