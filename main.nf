@@ -352,7 +352,7 @@ process SAIGE_STEP1_FIT_NULL_GLMM {
         --skipVarianceRatioEstimation=FALSE \\
         --isCateVarianceRatio=FALSE \\
         --IsOverwriteVarianceRatioFile=TRUE \\
-        --isStoreSigma=FALSE \\
+        --isStoreSigma=TRUE \\
         --isShrinkModelOutput=TRUE \\
         --tol=${params.saige_tol} \\
         --maxiter=${params.saige_maxiter} \\
