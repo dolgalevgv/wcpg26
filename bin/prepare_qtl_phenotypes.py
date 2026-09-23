@@ -13,6 +13,7 @@ parser.add_argument("adata_path")
 parser.add_argument("donors_path")
 parser.add_argument("pca_path")
 parser.add_argument("regions_path")
+parser.add_argument("pvar_path")
 
 parser.add_argument("--cell_type_col", type=str, required=True)
 parser.add_argument("--treat_col", type=str, required=True)
@@ -46,6 +47,29 @@ treat_levels = adata.obs[treat_col].unique()
 donors = pd.read_csv(donors_path, index_col=0)
 pca = pd.read_csv(pca_path, sep="\t", index_col=0)
 regions = pd.read_csv(regions_path, sep="\t", index_col=0)
+
+pvar = pd.read_csv(
+    args.pvar_path,
+    sep="\t",
+    comment="#",
+    header=None,
+    usecols=[0, 1],
+    names=["chrom", "pos"],
+    dtype={"chrom": str, "pos": "int64"},
+)
+
+regions["n_cis_variants"] = 0
+for chrom, variants in pvar.groupby("chrom", sort=False):
+    positions = np.sort(variants["pos"].to_numpy())
+    on_chrom = regions["chrom"].eq(chrom)
+
+    starts = regions.loc[on_chrom, "cis_start"].to_numpy()
+    ends = regions.loc[on_chrom, "cis_end"].to_numpy()
+
+    regions.loc[on_chrom, "n_cis_variants"] = (
+        np.searchsorted(positions, ends, side="right")
+        - np.searchsorted(positions, starts, side="left")
+    )
 
 donors = donors.drop(columns="vcf_id").join(pca)
 
@@ -105,17 +129,34 @@ for t, c in itertools.product(treat_levels, cell_type_levels):
 
     genes = sub_adata.var.copy()
     sub_adata.var = sub_adata.var.drop(columns="mt")
+
     genes["in_regions"] = regions_keep
     genes["donor_frac"] = donor_frac_genes
     genes["donor_frac_keep"] = donor_keep
 
-    gene_keep = regions_keep & mt_keep & donor_keep
+    genes["n_cis_variants"] = (
+        regions["n_cis_variants"]
+        .reindex(genes.index)
+        .fillna(0)
+        .astype("int64")
+    )
+    genes["cis_variants_keep"] = genes["n_cis_variants"].gt(0)
+
+    gene_keep = regions_keep & mt_keep & donor_keep & genes["cis_variants_keep"]
     genes_excluded = genes.loc[~gene_keep]
 
     sub_adata = sub_adata[:, gene_keep]
     sub_adata.var = sub_adata.var.join(regions)
 
     manifest.append([c, t, sub_donors.shape[0], sub_adata.shape[1]])
+
+    if sub_adata.n_vars == 0:
+        genes_excluded.reset_index(names="gene_id").to_csv(
+            f"{c}_{t}.genes_excluded.csv",
+            index=False,
+        )
+        print(f"No genes retained for {c}_{t}, skipping it")
+        continue
 
     stratum = Path(f"{c}_{t}")
     Path(stratum).mkdir(exist_ok=True)

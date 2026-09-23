@@ -214,6 +214,7 @@ process PREPARE_QTL_PHENOTYPES {
     path(donors)
     path(pca)
     path(regions)
+    path(pvar)
 
     output:
     path("manifest.csv"), emit: manifest
@@ -226,6 +227,7 @@ process PREPARE_QTL_PHENOTYPES {
         "${donors}" \\
         "${pca}" \\
         "${regions}" \\
+        "${pvar}" \\
         --cell_type_col ${params.cell_type_col} \\
         --treat_col ${params.treat_col} \\
         --qcovar ${params.qcovar} \\
@@ -440,11 +442,15 @@ workflow {
 
     PREPARE_GENE_REGIONS(gene_gtf, target_fai)
 
+    pvar_ch = PLINK_MAKE_PFILE.out.pfile
+        .map { pgen, psam, pvar -> pvar }
+
     PREPARE_QTL_PHENOTYPES(
         adata,
         donors,
         PLINK_PCA.out,
-        PREPARE_GENE_REGIONS.out.regions
+        PREPARE_GENE_REGIONS.out.regions,
+        pvar_ch
     )
 
     qtl_phenotypes_ch = PREPARE_QTL_PHENOTYPES.out.phenotypes
