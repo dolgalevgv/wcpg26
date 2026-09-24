@@ -416,6 +416,70 @@ process SAIGE_STEP2_TEST_CIS {
     """
 }
 
+process SAIGE_STEP3_GENE_PVALUES {
+    tag "${meta.phenotype_name}:${meta.gene_id}"
+    container 'docker://wzhou88/saigeqtl:latest'
+
+    publishDir {
+        "${params.outdir}/saige_gene_pvalues/${meta.phenotype_name}"
+    }, mode: 'copy'
+
+    input:
+    tuple val(meta),
+          path(associations)
+
+    output:
+    tuple val(meta), path("${meta.gene_id}.gene_pvalue.tsv"), optional: true, emit: gene_pvalues
+    tuple val(meta), path("${meta.gene_id}.step3.status.tsv"), emit: status
+    tuple val(meta), path("${meta.gene_id}.step3.log"), emit: logs
+    tuple val(meta), path("${meta.phenotype_name}__${meta.gene_id}.summary.tsv"), emit: summaries
+
+    script:
+    """
+    saige_workdir=\$(pwd -P)
+
+    n_variants=\$(awk 'NR > 1 && NF { n++ } END { print n+0 }' \
+        "${associations}")
+
+    if [ "\$n_variants" -eq 0 ]; then
+        status=no_testable_variants
+
+        printf '%s\\n' \
+            "No association rows for ${meta.gene_id}; skipping ACAT." \
+            | tee "${meta.gene_id}.step3.log"
+    else
+        step3_gene_pvalue_qtl.R \\
+            --assocFile="\$saige_workdir/${associations}" \\
+            --geneName="${meta.gene_id}" \\
+            --genePval_outputFile="\$saige_workdir/${meta.gene_id}.gene_pvalue.tsv" \\
+            2>&1 | tee "${meta.gene_id}.step3.log"
+
+        status=tested
+    fi
+
+    printf 'gene_id\\tstatus\\tn_variants\\n%s\\t%s\\t%s\\n' \\
+        "${meta.gene_id}" "\$status" "\$n_variants" \\
+        > "${meta.gene_id}.step3.status.tsv"
+
+    summary="${meta.phenotype_name}__${meta.gene_id}.summary.tsv"
+
+    printf 'phenotype_name\\tgene_id\\tstatus\\tn_variants\\tACAT_p\\ttop_MarkerID\\ttop_pval\\n' \
+        > "\$summary"
+
+    if [ "\$status" = tested ]; then
+        awk -v phenotype="${meta.phenotype_name}" -v n="\$n_variants" \
+            'BEGIN { FS = OFS = "\\t" }
+             NR > 1 { print phenotype, \$1, "tested", n, \$2, \$3, \$4 }' \
+            "${meta.gene_id}.gene_pvalue.tsv" >> "\$summary"
+    else
+        printf '%s\\t%s\\t%s\\t0\\tNA\\tNA\\tNA\\n' \
+            "${meta.phenotype_name}" "${meta.gene_id}" "\$status" \
+            >> "\$summary"
+    fi
+    """
+}
+
+
 workflow {
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
     donors = file(params.donors, checkIfExists: true)
@@ -494,4 +558,9 @@ workflow {
         SAIGE_STEP1_FIT_NULL_GLMM.out.models,
         BCFTOOLS_INDEX.out.vcf.first()
     )
+
+    SAIGE_STEP3_GENE_PVALUES(
+        SAIGE_STEP2_TEST_CIS.out.associations
+    )
+    
 }
