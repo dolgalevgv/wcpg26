@@ -275,210 +275,101 @@ process PLINK_PREPARE_SAIGE_BFILE {
 process EXPORT_SAIGE_PHENOTYPES {
     tag "${phenotype_name}"
     container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/5c/5c688ea7f743de8aa32394006d13bd87e1d5d03df3e1e3b0443907de1ac786c9/data'
+    scratch true
 
     input:
-    tuple val(phenotype_name),
-          path(phenotype_dir),
-          path(bed),
-          path(fam),
-          path(bim)
+    tuple val(phenotype_name), path(phenotype_dir), path(bed), path(fam), path(bim)
 
     output:
     tuple val(phenotype_name),
           path("manifest.csv"),
-          path("gene_inputs"),
-          path("covariates.txt"),
-          path(bed),
-          path(fam),
-          path(bim),
+          path("batches"),
+          path(bed), path(fam), path(bim),
           emit: qtl_inputs
 
     script:
     """
     export_saige_phenotypes.py \\
-        ${phenotype_dir}/phenotypes.h5ad \\
-        ${phenotype_dir}/donors.csv
+        "${phenotype_dir}/phenotypes.h5ad" \\
+        "${phenotype_dir}/donors.csv" \\
+        --batch-size ${params.saige_batch_size}
     """
 }
 
-process SAIGE_STEP1_FIT_NULL_GLMM {
-    tag "${meta.phenotype_name}:${meta.gene_id}"
+process SAIGE_STEP1_FIT_NULL_BATCH {
+    tag "${meta.phenotype_name}:${meta.batch_id}"
     container 'docker://wzhou88/saigeqtl:latest'
+    scratch true
 
     input:
-    tuple val(meta),
-          path(phenotype),
-          path(covariates),
-          path(bed),
-          path(fam),
-          path(bim)
+    tuple val(meta), path(batch_inputs), path(bed), path(fam), path(bim)
 
     output:
     tuple val(meta),
-          path("${meta.gene_id}.rda"),
-          path("${meta.gene_id}.varianceRatio.txt"),
+          path("${meta.phenotype_name}__${meta.batch_id}.models.tar"),
           emit: models
 
-    tuple val(meta),
-          path("${meta.gene_id}.step1.log"),
-          emit: logs
-
-    tuple val(meta),
-          path("${meta.gene_id}.status.txt"),
-          optional: true,
-          emit: status
-
     script:
     """
     saige_workdir=\$(pwd -P)
-
-    covariate_columns=\$(cat "${covariates}")
-
-    step1_fitNULLGLMM_qtl.R \\
-        --phenoFile="\$saige_workdir/${phenotype}" \\
-        --phenoCol=expression \\
-        --sampleIDColinphenoFile=donor \\
-        --cellIDColinphenoFile=cell_id \\
-        --covarColList="\$covariate_columns" \\
-        --sampleCovarColList="\$covariate_columns" \\
-        --offsetCol=log_total_counts \\
-        --traitType=count \\
-        --bedFile="\$saige_workdir/${bed}" \\
-        --famFile="\$saige_workdir/${fam}" \\
-        --bimFile="\$saige_workdir/${bim}" \\
-        --useGRMtoFitNULL=FALSE \\
-        --useSparseGRMtoFitNULL=FALSE \\
-        --LOCO=FALSE \\
-        --isRemoveZerosinPheno=FALSE \\
-        --isCovariateOffset=FALSE \\
-        --isCovariateTransform=TRUE \\
-        --skipModelFitting=FALSE \\
-        --skipVarianceRatioEstimation=FALSE \\
-        --isCateVarianceRatio=FALSE \\
-        --IsOverwriteVarianceRatioFile=TRUE \\
-        --isStoreSigma=TRUE \\
-        --isShrinkModelOutput=TRUE \\
-        --tol=${params.saige_tol} \\
-        --maxiter=${params.saige_maxiter} \\
-        --nThreads=${task.cpus} \\
-        --outputPrefix="\$saige_workdir/${meta.gene_id}" \\
-        2>&1 | tee "${meta.gene_id}.step1.log"
+    fit_saige_batch.sh \\
+        "\$saige_workdir/${batch_inputs}" \\
+        "\$saige_workdir/${bed}" \\
+        "\$saige_workdir/${fam}" \\
+        "\$saige_workdir/${bim}" \\
+        "\$saige_workdir/${meta.phenotype_name}__${meta.batch_id}.models.tar" \\
+        ${params.saige_tol} ${params.saige_maxiter} ${task.cpus}
     """
 }
 
-process SAIGE_STEP2_TEST_CIS {
-    tag "${meta.phenotype_name}:${meta.gene_id}"
+process SAIGE_STEP2_3_TEST_BATCH {
+    tag "${meta.phenotype_name}:${meta.batch_id}"
     container 'docker://wzhou88/saigeqtl:latest'
+    scratch true
 
     input:
-    tuple val(meta),
-          path(model),
-          path(variance_ratio)
-
-    tuple path(vcf),
-          path(vcf_index)
+    tuple val(meta), path(models)
+    tuple path(vcf), path(vcf_index)
 
     output:
     tuple val(meta),
-          path("${meta.gene_id}.cis.tsv"),
-          emit: associations
-
-    tuple val(meta),
-          path("${meta.gene_id}.step2.log"),
-          emit: logs
+          path("${meta.phenotype_name}__${meta.batch_id}"),
+          emit: results
 
     script:
     """
     saige_workdir=\$(pwd -P)
-
-    printf '%s\\t%s\\t%s\\n' \\
-        "${meta.chrom}" "${meta.cis_start}" "${meta.cis_end}" \\
-        > cis_region.tsv
-
-    step2_tests_qtl.R \\
-        --vcfFile="\$saige_workdir/${vcf}" \\
-        --vcfFileIndex="\$saige_workdir/${vcf_index}" \\
-        --vcfField=GT \\
-        --GMMATmodelFile="\$saige_workdir/${model}" \\
-        --varianceRatioFile="\$saige_workdir/${variance_ratio}" \\
-        --rangestoIncludeFile="\$saige_workdir/cis_region.tsv" \\
-        --chrom="${meta.chrom}" \\
-        --minMAC=${params.min_mac} \\
-        --minMAF=0 \\
-        --maxMissing=${params.max_missing} \\
-        --is_imputed_data=FALSE \\
-        --LOCO=FALSE \\
-        --SPAcutoff=2 \\
-        --markers_per_chunk=${params.saige_markers_per_chunk} \\
-        --is_overwrite_output=TRUE \\
-        --SAIGEOutputFile="\$saige_workdir/${meta.gene_id}.cis.tsv" \\
-        2>&1 | tee "${meta.gene_id}.step2.log"
+    test_saige_batch.sh \\
+        "\$saige_workdir/${models}" \\
+        "\$saige_workdir/${vcf}" \\
+        "${meta.phenotype_name}" \\
+        "\$saige_workdir/${meta.phenotype_name}__${meta.batch_id}" \\
+        ${params.min_mac} ${params.max_missing} ${params.saige_markers_per_chunk}
     """
 }
 
-process SAIGE_STEP3_GENE_PVALUES {
-    tag "${meta.phenotype_name}:${meta.gene_id}"
-    container 'docker://wzhou88/saigeqtl:latest'
-
-    publishDir {
-        "${params.outdir}/saige_gene_pvalues/${meta.phenotype_name}"
-    }, mode: 'copy'
+process COLLECT_QTL_RESULTS {
+    tag 'all'
+    container 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/5c/5c688ea7f743de8aa32394006d13bd87e1d5d03df3e1e3b0443907de1ac786c9/data'
+    publishDir "${params.outdir}/qtl_results", mode: 'copy'
 
     input:
-    tuple val(meta),
-          path(associations)
+    path(result_dirs, stageAs: 'inputs/*')
 
     output:
-    tuple val(meta), path("${meta.gene_id}.gene_pvalue.tsv"), optional: true, emit: gene_pvalues
-    tuple val(meta), path("${meta.gene_id}.step3.status.tsv"), emit: status
-    tuple val(meta), path("${meta.gene_id}.step3.log"), emit: logs
-    tuple val(meta), path("${meta.phenotype_name}__${meta.gene_id}.summary.tsv"), emit: summaries
+    path('all_genes.tsv'), emit: all_genes
+    path('significant_genes.tsv'), emit: sig_genes
+    path('lead_eqtl.tsv'), emit: lead_eqtl
+    path('cis_associations'), emit: associations
+    path('phenotype_summary.tsv'), emit: summary
 
     script:
     """
-    saige_workdir=\$(pwd -P)
-
-    n_variants=\$(awk 'NR > 1 && NF { n++ } END { print n+0 }' \
-        "${associations}")
-
-    if [ "\$n_variants" -eq 0 ]; then
-        status=no_testable_variants
-
-        printf '%s\\n' \
-            "No association rows for ${meta.gene_id}; skipping ACAT." \
-            | tee "${meta.gene_id}.step3.log"
-    else
-        step3_gene_pvalue_qtl.R \\
-            --assocFile="\$saige_workdir/${associations}" \\
-            --geneName="${meta.gene_id}" \\
-            --genePval_outputFile="\$saige_workdir/${meta.gene_id}.gene_pvalue.tsv" \\
-            2>&1 | tee "${meta.gene_id}.step3.log"
-
-        status=tested
-    fi
-
-    printf 'gene_id\\tstatus\\tn_variants\\n%s\\t%s\\t%s\\n' \\
-        "${meta.gene_id}" "\$status" "\$n_variants" \\
-        > "${meta.gene_id}.step3.status.tsv"
-
-    summary="${meta.phenotype_name}__${meta.gene_id}.summary.tsv"
-
-    printf 'phenotype_name\\tgene_id\\tstatus\\tn_variants\\tACAT_p\\ttop_MarkerID\\ttop_pval\\n' \
-        > "\$summary"
-
-    if [ "\$status" = tested ]; then
-        awk -v phenotype="${meta.phenotype_name}" -v n="\$n_variants" \
-            'BEGIN { FS = OFS = "\\t" }
-             NR > 1 { print phenotype, \$1, "tested", n, \$2, \$3, \$4 }' \
-            "${meta.gene_id}.gene_pvalue.tsv" >> "\$summary"
-    else
-        printf '%s\\t%s\\t%s\\t0\\tNA\\tNA\\tNA\\n' \
-            "${meta.phenotype_name}" "${meta.gene_id}" "\$status" \
-            >> "\$summary"
-    fi
+    collect_qtl_results.py \\
+        inputs ${params.fdr_threshold} \\
+        --fdr-scope ${params.fdr_scope}
     """
 }
-
 
 workflow {
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
@@ -532,35 +423,28 @@ workflow {
 
     EXPORT_SAIGE_PHENOTYPES(PLINK_PREPARE_SAIGE_BFILE.out.qtl_inputs)
 
-    saige_gene_inputs_ch = EXPORT_SAIGE_PHENOTYPES.out.qtl_inputs
+    saige_batch_inputs_ch = EXPORT_SAIGE_PHENOTYPES.out.qtl_inputs
         .splitCsv(header: true, elem: 1)
-        .map { phenotype_name, row, gene_dir, covariates, bed, fam, bim  ->
+        .map { phenotype_name, row, batch_dir, bed, fam, bim ->
             def meta = [
                 phenotype_name: phenotype_name,
-                gene_id: row.gene_id,
-                chrom: row.chrom,
-                cis_start: row.cis_start.toInteger(),
-                cis_end: row.cis_end.toInteger()
+                batch_id: row.batch_id,
+                n_genes: row.n_genes.toInteger()
             ]
-            tuple(
-                meta,
-                gene_dir.resolve(row.phenotype_file),
-                covariates,
-                bed,
-                fam,
-                bim
-            )
+            tuple(meta, batch_dir.resolve(row.archive), bed, fam, bim)
         }
 
-    SAIGE_STEP1_FIT_NULL_GLMM(saige_gene_inputs_ch)
+    SAIGE_STEP1_FIT_NULL_BATCH(saige_batch_inputs_ch)
 
-    SAIGE_STEP2_TEST_CIS(
-        SAIGE_STEP1_FIT_NULL_GLMM.out.models,
+    SAIGE_STEP2_3_TEST_BATCH(
+        SAIGE_STEP1_FIT_NULL_BATCH.out.models,
         BCFTOOLS_INDEX.out.vcf.first()
     )
 
-    SAIGE_STEP3_GENE_PVALUES(
-        SAIGE_STEP2_TEST_CIS.out.associations
-    )
-    
+    qtl_collection_ch = SAIGE_STEP2_3_TEST_BATCH.out.results
+        .map { meta, result_dir -> result_dir }
+        .collect()
+        .map { result_dirs -> result_dirs.sort { it.name } }
+
+    COLLECT_QTL_RESULTS(qtl_collection_ch)
 }
