@@ -372,6 +372,8 @@ process COLLECT_QTL_RESULTS {
 }
 
 workflow {
+    log.info "SAIGE tol=${params.saige_tol}, maxiter=${params.saige_maxiter}"
+    
     vcf_ch = Channel.fromPath(params.vcf, checkIfExists: true)
     donors = file(params.donors, checkIfExists: true)
     source_fasta = file(params.source_fasta, checkIfExists: true)
