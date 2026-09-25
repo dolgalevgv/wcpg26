@@ -419,7 +419,7 @@ workflow {
     PLINK_PREPARE_SAIGE_BFILE(
         qtl_phenotypes_ch, 
         PLINK_INDEP_PAIRWISE.out.pfile.first()
-        )
+    )
 
     EXPORT_SAIGE_PHENOTYPES(PLINK_PREPARE_SAIGE_BFILE.out.qtl_inputs)
 
@@ -434,7 +434,7 @@ workflow {
             tuple(meta, batch_dir.resolve(row.archive), bed, fam, bim)
         }
 
-    SAIGE_STEP1_FIT_NULL_BATCH(saige_batch_inputs_ch)
+    SAIGE_STEP1_FIT_NULL_BATCH(saige_batch_inputs_ch.take(2))
 
     SAIGE_STEP2_3_TEST_BATCH(
         SAIGE_STEP1_FIT_NULL_BATCH.out.models,
